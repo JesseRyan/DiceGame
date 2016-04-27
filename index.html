@@ -1,0 +1,368 @@
+<!doctype html>
+<html>
+<head>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.2/jquery.min.js"></script>
+</head>
+<body>
+<script>
+
+	
+	
+	/* create a dice - determine how many sides */ 
+	var playGame = function( ){
+	
+		this.players = [];
+		this.playersTurn = 0;
+		this.firstPlayerTurn = (Math.floor(Math.random() * (4 - 0)) + 0 );
+
+		this.boards = [ $('.board.one'), $('.board.two'),  $('.board.three'),  $('.board.four') ];
+		this.board = 0;
+		this.prevBoard = null;
+
+		this.round = 0;
+		this.roundTurns = 0;
+		this.newRound = false;
+		/* added players */ 
+		
+		for ( var i = 0; i < 4; i++ ){
+			var p =  new player( i );
+			if ( i == this.firstPlayerTurn ){ 
+				p.activeTurn = true;
+				this.playersTurn = this.firstPlayerTurn;
+			}
+			
+			this.players.push( p );
+			var ui = p.uibuild( this.boards[ this.board ] );
+		}
+	}
+	/* determine the next player */ 
+	playGame.prototype.nextPlayer = function(){
+		
+		this.players[ this.playersTurn ].activeTurn = false;
+		this.playersTurn ++;
+
+		if ( this.playersTurn >= this.players.length ){
+			this.playersTurn = 0;
+		}
+		this.players[ this.playersTurn ].activeTurn = true;
+	}
+	playGame.prototype.refreshUI = function(  ){
+			/* added players */ 
+			if ( this.newRound != true ){
+				$( this.boards[ this.board ] ).html("");
+			}else{
+				$( this.boards[ this.board ] ).show();
+			}
+		
+			for ( var i = 0; i < 4; i++ ){
+				var ui = this.players[ i ].uibuild( this.boards[ this.board ] );
+			}
+	}
+	/*  if the game state should advance doit 
+	if a player has exhausted all turns move to the next player 
+	if a round is over start the next round   */
+	playGame.prototype.advGameState = function(){
+			this.newRound = false;
+			if ( this.players[ this.playersTurn ].turn == 5 ){	
+				this.nextPlayer();
+				this.roundTurns++;
+				if ( this.roundTurns == 4 ){
+					this.newRoundSetup();
+				}
+			}
+		}
+	
+	/* setup a new round, resets and player starting points */ 
+	playGame.prototype.newRoundSetup = function(){
+	
+			/* utility function - needs to be integrated */
+			var turnStart = function( n ){
+				var num = n;
+				num += 1;
+				if ( num >= 4 ){
+					num = 0;
+				}
+				return num;
+			}
+	
+			// If we have reached the last round display the results. 
+			this.board++;
+			$( this.boards[ this.board ] ).show();
+			this.round ++;
+			this.newRound = true;
+			this.players[ this.firstPlayerTurn ].activeTurn = false;
+			this.playersTurn = turnStart( this.firstPlayerTurn );
+			this.firstPlayerTurn = this.playersTurn;
+			this.players[ this.firstPlayerTurn ].activeTurn = true;
+			
+			
+			
+			console.log ( this.playersTurn + " " + this.firstPlayerTurn );
+			console.log ( this );
+			this.roundTurns = 0;
+			for ( var i = 0; i < 4; i++ ){
+				this.players[ i ].totalScore += this.players[ i ].score;
+				this.players[ i ].score = 0;
+				this.players[ i ].turn = 1;
+				
+				/* reset and roll all dice */ 
+				for ( var  i2 = 0; i2 < 5; i2++ ){
+					this.players[ i ].die[ i2 ].roll();
+					this.players[ i ].die[ i2 ].reroll = false;
+					this.players[ i ].score += this.players[ i ].die[ i2 ].value;
+				}
+			}
+			if ( this.round == 4 ){ this.gameOver(); }
+				
+	}
+	playGame.prototype.gameOver = function(){
+		var board = $(".board.results");
+		board.show();
+		for ( var i = 0; i < this.players.length; i++){
+			board.append( "<span class='player-score'>" + this.players[ i ].totalScore + "</span>" );
+		}
+	}
+	
+	
+	/* DICE OBJECTS */
+	var dice = function( n ){
+		this.sides = n;
+		this.reroll = false;
+		this.value = null;
+	}	
+	dice.prototype.roll = function(){
+		var roll  = Math.floor(Math.random() * (this.sides - 1 + 1)) + 1;
+		this.value = roll == 4 ? 0 : roll; 
+	}
+	/* allowing for toggle now, as specification is ambiguous */ 
+	dice.prototype.toggle = function(){
+		this.reroll = this.reroll == true ? false : true;
+	}
+		
+	
+	/*  player objects   */ 
+	var player = function( num ){
+			this.playerNo = num;	
+			this.score = 0;
+			this.turn = 1; 
+			this.totalScore = 0;
+			this.die = [];
+			this.activeTurn = false;
+			/* preform the initial state for all players */
+			/* give them their initial rolls */
+			for ( var  i = 0; i < 5; i++ ){
+				var d = new dice( 6 );
+				d.roll();
+				this.die[ i ] = d;
+				this.score += d.value;
+			}
+	}
+	/* attempt to roll the dice */
+	/* ensure the dice kept and rolled states are valid */ 
+	player.prototype.rollDice = function(){	
+
+			/* ensure it is this players turn */ 
+			if ( this.activeTurn == false ){
+				alert ( "Only the active player can roll " );
+				return false;
+			}
+			
+			/* check to see if there is enough kept dice */ 
+			var kept = 0;
+			for ( var  i = 0; i < 5; i++ ){
+				if ( this.die[ i ].reroll != true ){ kept++; } 
+			}
+			
+			
+			if ( this.turn > kept  ){
+				alert("Keep at least " + this.turn + " dice" );
+				return false;
+			}else{
+				this.score = 0;
+				for ( var  i = 0; i < 5; i++ ){
+					if ( this.die[ i ].reroll == true ){  this.die[ i ].roll() }
+					this.score += this.die[ i ].value;
+				}
+				if ( this.turn < 5 ){ this.turn++; }
+				return true;
+			}
+	}
+	
+	/* build the UI for a specific player - and bind the objects */
+	player.prototype.uibuild = function( element ){
+		
+		var p_ele = document.createElement("div");
+		var cName = this.activeTurn == true ? "player active" : "player";
+		p_ele.className = cName;
+		$( element ).append(p_ele);
+		
+		var p_id = document.createElement("span");
+		p_id.className = "player-id";
+		p_ele.appendChild( p_id );
+		
+		/* attach the dom elements for dice interaction */
+		for ( var i = 0; i < 5; i++ ){
+			var p_dice = document.createElement("span");
+			var cName = this.die[ i ].reroll == true ? "dice" : "dice  keep";
+			p_dice.className = cName;
+			p_dice.innerHTML = this.die[ i ].value;
+			
+			$(p_dice).bind("die", this.die[ i ] );
+			p_ele.appendChild(p_dice);
+		}
+		
+		var p_score = document.createElement("span");
+		p_score.className = "player-score";
+		p_score.innerHTML = this.score;
+		p_ele.appendChild(p_score);
+		/* now that they're created bind the specific object to them */
+		
+		var p_roll = document.createElement("span");
+		p_roll.className = "roll";
+		p_roll.innerHTML = "Roll";
+		$(p_roll).bind("roll", this);
+		p_ele.appendChild(p_roll);
+	}
+
+$( document ).ready(function() {
+	var game = new playGame();
+	$('body').on('contextmenu', 'img', function(e){ return false; });
+	
+	$('.board.one, .board.two, .board.three, .board.four').on('click', '.dice', function() {
+		$( this ).toggleClass("keep");
+		var elem = $( this )[0];
+		var data = jQuery.hasData( elem ) && jQuery._data( elem );
+		data.events['die'][0].handler.toggle();
+	});
+
+	$(".board.one, .board.two, .board.three, .board.four").on('click', '.roll', function() {
+		var elem = $( this )[ 0 ];
+		var data = jQuery.hasData( elem ) && jQuery._data( elem );
+
+		/*  if you roll sucessfully complete a dice roll advance the state */
+		/*  Re draw the UI and rebind objects  to DOM elements */ 
+		if ( data.events['roll'][0].handler.rollDice() ){
+			game.advGameState();
+			game.refreshUI( );
+		}
+		
+	});
+	
+	
+});
+
+
+</script>
+
+<div class="board one no-select"></div>
+<div class="board two no-select"></div>
+<div class="board three no-select"></div>
+<div class="board four no-select"></div>
+
+<div class='board results no-select'>
+
+
+</div>
+
+</body>
+
+<style>
+
+	.board{
+	    display: block;
+		background-color: whitesmoke;
+		margin: 0px auto;
+		border: 2px solid orange;
+		max-width: 320px;
+	}
+	
+	.board.two{
+		display:none;
+	}
+	.board.three{
+		display:none;
+	}
+	.board.four{
+		display:none;
+	}
+	
+	.board.results{
+		display: none;
+		padding: 20px;
+		margin: 0px auto;
+		margin-top: 20px;
+		max-width: 300px;
+	}
+	
+	.player{
+		padding-top:5px;
+		padding-bottom:5px;
+	}
+	
+	.player.active{
+		background-color: lightyellow;
+	}
+	
+	.dice{
+	
+		border: 1px solid orange;
+		width: 23px;
+		height:23px;
+		line-height:23px;
+		background-color: gray;
+		color:white;
+		display: inline-block;
+		text-align: center;
+		margin-left: 10px;
+		cursor:pointer; 
+	}
+	
+	.roll{
+		border: 1px solid orange;
+		height:24px;
+		line-height:24px;
+		color:orange;
+		display:inline-block;
+		margin-left:10px;
+		margin-right:10px;
+		padding-left:5px;
+		padding-right:5px;
+		cursor:pointer;
+	}
+	
+	.dice.keep{
+		width: 25px;
+		height: 25px;
+		line-height: 25px;
+		border: none;
+	}
+	
+	.dice.re-roll{
+		border:1px solid orange;
+	}
+	
+	.player-score{
+		height: 24px;
+		width:48px;
+		border:1px solid gray;
+		display: inline-block;
+		line-height: 24px;
+		text-align: center;
+		margin-left: 20px;
+	}
+	
+	.no-select{
+		-webkit-touch-callout: none; 
+		-webkit-user-select: none;  
+		-moz-user-select: none;     
+		-ms-user-select: none;      
+		user-select: none;   
+	}
+	
+
+</style>
+</html>
+
+
+
+
